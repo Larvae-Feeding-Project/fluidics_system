@@ -25,17 +25,19 @@ void loop() {
     command.trim(); // Remove whitespace/newlines
     command.toUpperCase();
 
-    // --- START / STOP ---
-    if (command == "START") {
-      // Pull to Ground to close the circuit
+    // --- START / STOP (PULSE TOGGLE) ---
+    if (command == "TOGGLE") {
+      // 1. "Press the button" (Connect to Ground)
       pinMode(startStopPin, OUTPUT);
       digitalWrite(startStopPin, LOW); 
-      Serial.println("ACK: PUMP RUNNING");
-    } 
-    else if (command == "STOP") {
-      // Set to High Impedance to open the circuit
+      
+      // 2. Hold it just long enough for the pump to register (100 milliseconds)
+      delay(300); 
+      
+      // 3. "Release the button" (Open the circuit)
       pinMode(startStopPin, INPUT); 
-      Serial.println("ACK: PUMP STOPPED");
+      
+      Serial.println("ACK: PUMP TOGGLED");
     }
 
     // --- DIRECTION ---
