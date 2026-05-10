@@ -18,7 +18,7 @@ This repo also includes utils that utilize the pump (using the bridge)
 
 ## Utils
 Utils can be found in the fluidics_utils folder. They can be used for calibration, introduction of new commands and more. The current utils are:
-1. command_sender: initiates the movement system, and then enable the user to send G-code directly to the movement_system.
+1. fluidics_command_sender: initiates the fluidics system, and then enable the user to send commands directly to the fluidics_system.
 
 ## TODO's
 1. Finialize and verify bridge
@@ -27,7 +27,5 @@ Utils can be found in the fluidics_utils folder. They can be used for calibratio
 ## Usage - nees update
 IN THE FUTURE WILL BE USED BY CONTROL UNIT
 
-
 ## Contributing
-
 Asaf Shasha and Nitai Gildor
