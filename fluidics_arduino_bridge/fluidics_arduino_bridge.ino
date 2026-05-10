@@ -1,6 +1,6 @@
 // Pin Definitions
-const int startStopPin = 3; // To Pump Pin 11 (Purple)
-const int dirPin = 4;       // To Pump Pin 5 (Red)
+const int startStopPin = 7; // To Pump Pin 11 (Purple)
+const int dirPin = 3;       // To Pump Pin 5 (Red)
 const int speedPin = 5;     // To Pump Pin 7 (Orange - 0-10kHz input)
 
 void setup() {
