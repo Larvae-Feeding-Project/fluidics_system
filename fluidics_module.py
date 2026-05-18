@@ -1,10 +1,10 @@
 import sys
 import time
-from enum import Enum
 from pathlib import Path
 import serial
 import json
 import threading
+from fluidics_enums import *
 
 # Dict of all available commands
 BRIDGE_COMMANDS = {
@@ -14,12 +14,13 @@ BRIDGE_COMMANDS = {
     "speed": "SPEED:"
 }
 
-class Direction(Enum):
-    """
-    This enum represents the 2 directions the pump can be in: forward, reverse
-    """
-    FORWARD = 0
-    REVERSE = 1
+# Presets - PLACEHOLDERS until field validation
+FLUSH_SPEED = 6000
+FEED_SPEED = 50
+TUBE_VOLUME = 10000  # Placeholder
+
+
+
 
 class FluidicsDriver:
     def __init__(self):
@@ -46,7 +47,6 @@ class FluidicsDriver:
         self.command_lock = threading.Lock()  # Prevents overlapping commands
         self.ack_event = threading.Event()  # Signals when an ACK is received
         self.command_success = False  # Stores the result (True if ACK, False if NACK/Error)
-        self.expected_ack = "OK"  # Change this to whatever your Arduino sends (e.g., "ACK", "DONE")
 
         # Create serial port with fluidics_bridge
         try:
@@ -58,7 +58,7 @@ class FluidicsDriver:
 
             # Start the background listening thread
             self.listening_flag = True
-            listener_thread = threading.Thread(target=self._listen_to_bridge, args=(self.fluidics_bridge,), daemon=True)
+            listener_thread = threading.Thread(target=self._listen_to_bridge, daemon=True)
             listener_thread.start()
 
         except serial.SerialException as e:
@@ -72,10 +72,12 @@ class FluidicsDriver:
         # Initial pump settings
         self.current_speed = 0
         self.current_dir = Direction.FORWARD
+        self.running = False
 
-        self._set_speed(100)
+        time.sleep(1)
+        self._set_speed(200) # Initial value that the pump registers
+        time.sleep(2)
         self._set_direction(Direction.FORWARD)
-
 
         self.ready = False
 
@@ -110,74 +112,81 @@ class FluidicsDriver:
         """
 
         self._send_command(BRIDGE_COMMANDS["toggle"])
-
+        time.sleep()
 
     def _set_speed(self, speed):
         """
-        Sets the speed of the pump, makes sure it was acknowledged by the fluidics_bridge
-        :param speed: frequency between 0 to 10000 (under 32 will be 0 because of arduino tone() limitations
-        :return: True if successful, false otherwise
+        Sets the speed of the pump.
         """
-        # Verify speed validity
         if speed < 0 or speed > 10000:
             print("Speed must be between 0 to 10000")
             return False
 
-        rsp = self._send_command(f"{BRIDGE_COMMANDS["speed"]} {speed}")
+        rsp = self._send_command(f"speed {speed}")
+
         if rsp:
             self.current_speed = speed
             return True
         return False
 
-    def _set_direction(self, direction):
+    def _set_direction(self, direction: Direction):
         """
-        Sets the direction of the pump
-        :param direction: direction from one of the option in Direction ENUM
-        :return: True if successful, false otherwise
+        Sets the direction of the pump.
+        :param direction: The direction to send the machine. Values from Direction enum
+        :return: true if successful (received ack from bridge), false otherwise
         """
-
         if direction == Direction.FORWARD:
-            self._send_command(BRIDGE_COMMANDS["forward"])
-            self.current_dir = Direction.FORWARD
-            return True
+            rsp = self._send_command("forward")
+            if rsp:
+                self.current_dir = Direction.FORWARD
+                return True
+
         elif direction == Direction.REVERSE:
-            self._send_command(BRIDGE_COMMANDS["reverse"])
-            self.current_dir = Direction.REVERSE
-            return True
-        else:
-            print("Invalid direction")
-            return False
+            rsp = self._send_command("reverse")
+            if rsp:
+                self.current_dir = Direction.REVERSE
+                return True
 
+        return False
 
-    def _send_command(self, command, timeout=2.0):
+    def _send_command(self, command_input, timeout=2.0):
         """
         Sends a command to the fluidics bridge and waits for an ACK.
-        :param command: String of the command to be sent (from BRIDGE_COMMANDS)
-        :param timeout: How long to wait for an ACK (in seconds) before failing
-        :return: True if ACK received, False if timeout or error
         """
-        if command not in BRIDGE_COMMANDS:
-            print(f"Invalid command: {command}")
+        print(f"Processing command: {command_input}")
+
+        # Split string by spaces
+        parts = str(command_input).strip().split()
+        if not parts:
             return False
 
-        # Lock ensures only one command is sent and waited for at a time
+        base_cmd = parts[0].lower()
+
+        if base_cmd not in BRIDGE_COMMANDS:
+            print(f"Invalid command: {base_cmd}")
+            return False
+
+        # Construct the string for bridge
+        serial_msg = BRIDGE_COMMANDS[base_cmd]
+
+        # If there's a second argument (like the 5000 in "speed 5000"), append it directly
+        if len(parts) > 1:
+            serial_msg += parts[1]
+
         with self.command_lock:
-            # Reset event and success flag
             self.ack_event.clear()
             self.command_success = False
 
-            # Send command to bridge
-            self.fluidics_bridge.write(f"{BRIDGE_COMMANDS[command]}\n".encode('utf-8'))
+            # Send command to bridge with the newline character your Arduino expects
+            self.fluidics_bridge.write(f"{serial_msg}\n".encode('utf-8'))
 
-            # Wait for ACK from bridge/ timeout
+            # Wait for ACK
             event_not_timed_out = self.ack_event.wait(timeout)
 
-            # Timeout response
             if not event_not_timed_out:
-                print(f"[Timeout] No ACK received for command '{command}' within {timeout}s.")
+                print(f"[Timeout] No ACK received for '{serial_msg}' within {timeout}s.")
                 return False
 
-            # Return Success or failure, evaluated in listener
             return self.command_success
 
     def _listen_to_bridge(self):
@@ -191,15 +200,14 @@ class FluidicsDriver:
                     incoming_data = self.fluidics_bridge.readline().decode('utf-8', errors='ignore').strip()
 
                     if incoming_data:
-                        # Print received message
-                        print(f"\n[Arduino]: {incoming_data}")
+                        print(f"\n[Arduino]: {incoming_data}") # Print received message
 
                         # Incoming data analysis
                         if "ACK" in incoming_data:
                             self.command_success = True
                             self.ack_event.set()  # Wakes up _send_command
 
-                        # Bridge ready message
+                        # Bridge ready message, happens at startup
                         elif "Arduino Ready" in incoming_data:
                             continue
 
@@ -214,4 +222,3 @@ class FluidicsDriver:
 
             # Prevent maxing out CPU
             time.sleep(0.01)
-
