@@ -15,11 +15,9 @@ BRIDGE_COMMANDS = {
 }
 
 # Presets - PLACEHOLDERS until field validation
-FLUSH_SPEED = 6000
-FEED_SPEED = 50
-TUBE_VOLUME = 10000  # Placeholder
-
-
+FLUSH_SPEED = 6000.0
+FEED_SPEED = 50.0
+TUBE_VOLUME = 10000.0  # Placeholder
 
 
 class FluidicsDriver:
@@ -75,7 +73,7 @@ class FluidicsDriver:
         self.running = False
 
         time.sleep(1)
-        self._set_speed(200) # Initial value that the pump registers
+        self._set_speed(200)  # Initial value that the pump registers
         time.sleep(2)
         self._set_direction(Direction.FORWARD)
 
@@ -86,11 +84,14 @@ class FluidicsDriver:
         Fluidics system destructor. Stops listening thread, then closes comport to fluidics_bridge
         :return: VOID
         """
+        # Empty tube back into container
+        self.clear_tube()
 
+        # Shut down listening
         self.listening_flag = False
         self.fluidics_bridge.close()
         print("Fluidics system closed...")
-        time.sleep(2)
+        time.sleep(1)
 
     def output(self, amount):
         """
@@ -98,6 +99,11 @@ class FluidicsDriver:
         :param amount: amount of food to output (im micro-liters)
         :return: boolean true for success, false otherwise
         """
+        if not self._set_speed(FEED_SPEED): return False
+        if not self._set_direction(Direction.FORWARD): return False
+        if not self._start_stop(): return False
+        time.sleep(amount / FEED_SPEED)
+        return self._start_stop()
 
     def flush(self):
         """
@@ -110,13 +116,62 @@ class FluidicsDriver:
         Fills the tube before feeding (above empty container). Will use a predefined amount
         :return: true when finished, false otherwise
         """
+        try:
+            if not self._set_speed(FLUSH_SPEED): return False
+            if not self._set_direction(Direction.FORWARD): return False
+            if not self._start_stop(): return False
+            time.sleep(TUBE_VOLUME / FLUSH_SPEED + 1)
 
-        self._send_command(BRIDGE_COMMANDS["toggle"])
-        time.sleep()
+            # Returns True if successful, False if it failed
+            stopped_successfully = self._start_stop()
+            if stopped_successfully:
+                self.ready = True
+                return True
+            return False
+
+        except Exception as e:
+            print("ERROR: Exception occurred while filling tube")
+            return False
+
+        # May need movement system to touch surface before starting
+
+    def clear_tube(self):
+        """
+        Clears the tube after feeding and when closing. Will use a predefined amount
+        :return: true when finished, false otherwise
+        """
+        try:
+            if not self._set_speed(FLUSH_SPEED): return False
+            if not self._set_direction(Direction.REVERSE): return False
+            if not self.running:
+                if not self._start_stop(): return False
+            time.sleep(TUBE_VOLUME / FLUSH_SPEED)
+
+            # Returns True if successful, False if it failed
+            return self._start_stop()
+        except Exception as e:
+            print("ERROR: Exception occurred while filling tube")
+            return False
+
+    def _start_stop(self):
+        """
+        Starts/Stops the pump (toggle)
+        :return: true if successful (received ack from bridge), false otherwise
+        """
+
+        rsp = self._send_command(f"toggle")
+
+        if not rsp:
+            return False
+
+        self.running = not self.running
+        return True
 
     def _set_speed(self, speed):
         """
         Sets the speed of the pump.
+        :param speed: The speed to set the pump (between 31 and 10000)
+        :return: true if successful (received ack from bridge), false otherwise
         """
         if speed < 0 or speed > 10000:
             print("Speed must be between 0 to 10000")
@@ -200,7 +255,7 @@ class FluidicsDriver:
                     incoming_data = self.fluidics_bridge.readline().decode('utf-8', errors='ignore').strip()
 
                     if incoming_data:
-                        print(f"\n[Arduino]: {incoming_data}") # Print received message
+                        print(f"\n[Arduino]: {incoming_data}")  # Print received message
 
                         # Incoming data analysis
                         if "ACK" in incoming_data:
