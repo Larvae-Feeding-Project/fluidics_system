@@ -4,7 +4,7 @@ from pathlib import Path
 import serial
 import json
 import threading
-from fluidics_enums import *
+from fluidics_system.fluidics_enums import *
 
 # Dict of all available commands
 BRIDGE_COMMANDS = {
