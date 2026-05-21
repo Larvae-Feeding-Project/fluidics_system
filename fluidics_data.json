@@ -1,0 +1,7 @@
+{
+  "COMPORT": "COM7",
+  "BAUD_RATE": 115200,
+  "XLIMIT": 370,
+  "YLIMIT": 310,
+  "ZLIMIT": 180
+}
