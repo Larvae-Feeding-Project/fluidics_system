@@ -15,6 +15,7 @@ BRIDGE_COMMANDS = {
 }
 
 # Presets - PLACEHOLDERS until field validation
+FLUSH_AMOUNT = 10000.0
 FLUSH_SPEED = 6000.0
 FEED_SPEED = 50.0
 TUBE_VOLUME = 10000.0  # Placeholder
@@ -107,9 +108,14 @@ class FluidicsDriver:
 
     def flush(self):
         """
-        Flushes the tube (used for cleaning). Will either use keypress to stop or a predefined amount
+        Flushes the tube (used for cleaning). Uses a predefined amount
         :return: true when finished, false otherwise
         """
+        if not self._set_speed(FLUSH_SPEED): return False
+        if not self._set_direction(Direction.FORWARD): return False
+        if not self._start_stop(): return False
+        time.sleep(FLUSH_AMOUNT/ FLUSH_SPEED)
+        return self._start_stop()
 
     def fill_tube(self):
         """
