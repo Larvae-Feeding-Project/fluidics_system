@@ -1,7 +1,7 @@
 // Pin Definitions
-const int startStopPin = 7; // To Pump Pin 11 (Purple)
-const int dirPin = 3;       // To Pump Pin 5 (Red)
-const int speedPin = 5;     // To Pump Pin 7 (Orange - 0-10kHz input)
+const int startStopPin = 7; // To Pump Pin 7 (Purple)
+const int dirPin = 3;       // To Pump Pin 3 (Red)
+const int speedPin = 5;     // To Pump Pin 5 (Orange - 0-10kHz input)
 
 void setup() {
   // Start serial communication at 115200 baud for Python
