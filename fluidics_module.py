@@ -11,7 +11,8 @@ BRIDGE_COMMANDS = {
     "toggle": "TOGGLE",
     "forward": "DIR_FWD",
     "reverse": "DIR_REV",
-    "speed": "SPEED:"
+    "speed": "SPEED:",
+    "estop": "ESTOP"
 }
 
 # Presets - PLACEHOLDERS until field validation
@@ -47,28 +48,46 @@ class FluidicsDriver:
         self.ack_event = threading.Event()  # Signals when an ACK is received
         self.command_success = False  # Stores the result (True if ACK, False if NACK/Error)
 
-        # Create serial port with fluidics_bridge
+        # Establish connection and set initial states
+        self._connect_and_start(is_reconnect=False)
+
+    def _connect_and_start(self, is_reconnect=False):
+        """
+        Handles establishing the serial connection, starting the listener thread,
+        and synchronizing the initial hardware state.
+        """
+        # Print texts depending on first connection or reconnection
+        action_text = "Reconnecting to" if is_reconnect else "Connecting to"
+        success_text = "reestablished" if is_reconnect else "established"
+
         try:
-            print(f"Connecting to fluidics bridge on {self.fluidics_data["COMPORT"]}...")
-            self.fluidics_bridge = serial.Serial(self.fluidics_data["COMPORT"], self.fluidics_data["BAUD_RATE"],
-                                                 timeout=1)
-            time.sleep(2)  # Arduino reset time
-            print("\nFluidics system connection established\n")
+            print(f"{action_text} fluidics bridge on {self.fluidics_data['COMPORT']}...")
+            self.fluidics_bridge = serial.Serial(
+                self.fluidics_data["COMPORT"],
+                self.fluidics_data["BAUD_RATE"],
+                timeout=1
+            )
+            time.sleep(2)  # Wait for serial initialization / Arduino reset
+            print(f"\nFluidics system connection {success_text}\n")
 
             # Start the background listening thread
             self.listening_flag = True
             listener_thread = threading.Thread(target=self._listen_to_bridge, daemon=True)
             listener_thread.start()
 
+            # Initializes states (speed and direction)
+            self._initialize_hardware_state()
+
         except serial.SerialException as e:
-            print(f"\nCould not open serial port: {e}")
-
+            print(f"\n>> Connection failed: {e}. Check USB connection.\n")
         except Exception as e:
-            print("Exception occurred, unknown error")
+            print(f"\n>> Exception occurred: {e}\n")
 
-        time.sleep(1)
-
-        # Initial pump settings
+    def _initialize_hardware_state(self):
+        """
+            Sets default software states and pushes the initial configuration
+        commands down to the Arduino bridge.
+        """
         self.current_speed = 0
         self.current_dir = Direction.FORWARD
         self.running = False
@@ -283,3 +302,38 @@ class FluidicsDriver:
 
             # Prevent maxing out CPU
             time.sleep(0.01)
+
+    def emergency_stop(self):
+        """
+            Commands the Arduino to reboot via Watchdog, then reestablishes the connection.
+        """
+        print(">> FLUIDICS EMERGENCY STOP TRIGGERED!")
+
+        if hasattr(self, 'fluidics_bridge') and self.fluidics_bridge.is_open:
+            # Send the kill command
+            self.fluidics_bridge.write(b"ESTOP\n")
+            self.fluidics_bridge.flush()
+
+            # Shut down listening thread and close serial port
+            self.listening_flag = False
+            time.sleep(0.5)
+            self.fluidics_bridge.close()
+
+            # Reset software state
+            self.current_speed = 0
+            self.running = False
+            self.ready = False
+            self.command_success = False
+            self.ack_event.set()
+
+            # Start a background thread to reconnect so the UI does not freeze
+            threading.Thread(target=self._reconnect_bridge, daemon=True).start()
+
+    def _reconnect_bridge(self):
+        """
+        Waits for the Arduino bootloader to finish, then rebuilds the serial connection.
+        """
+        print(">> Waiting for Arduino to reboot...")
+        time.sleep(3)  # Give bridge time to restart
+
+        self._connect_and_start(is_reconnect=True)
