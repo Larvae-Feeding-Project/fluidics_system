@@ -78,10 +78,15 @@ class FluidicsDriver:
             # Initializes states (speed and direction)
             self._initialize_hardware_state()
 
+            # Clear the tube after reconnection
+            if is_reconnect:
+                self.clear_tube()
+
         except serial.SerialException as e:
             print(f"\n>> Connection failed: {e}. Check USB connection.\n")
         except Exception as e:
             print(f"\n>> Exception occurred: {e}\n")
+
 
     def _initialize_hardware_state(self):
         """
@@ -143,7 +148,9 @@ class FluidicsDriver:
         """
         try:
             if not self._set_speed(FLUSH_SPEED): return False
+            time.sleep(1)
             if not self._set_direction(Direction.FORWARD): return False
+            time.sleep(1)
             if not self._start_stop(): return False
             time.sleep(TUBE_VOLUME / FLUSH_SPEED + 1)
 
@@ -167,7 +174,9 @@ class FluidicsDriver:
         """
         try:
             if not self._set_speed(FLUSH_SPEED): return False
+            time.sleep(1)
             if not self._set_direction(Direction.REVERSE): return False
+            time.sleep(1)
             if not self.running:
                 if not self._start_stop(): return False
             time.sleep(TUBE_VOLUME / FLUSH_SPEED)
