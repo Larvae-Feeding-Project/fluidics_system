@@ -18,8 +18,8 @@ BRIDGE_COMMANDS = {
 # Presets - PLACEHOLDERS until field validation
 FLUSH_AMOUNT = 10000.0
 FLUSH_SPEED = 6000.0
-FEED_SPEED = 50.0
-TUBE_VOLUME = 100000.0  # Placeholder
+FEED_SPEED = 50
+TUBE_VOLUME = 100000.0  # Placeholder fake food: 100300.0
 
 
 class FluidicsDriver:
