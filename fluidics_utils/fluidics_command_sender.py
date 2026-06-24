@@ -2,7 +2,7 @@ from fluidics_system.fluidics_module import FluidicsDriver
 
 """
 This module lets you send commands directly to the pump (meaning to the bridge)
-Valid commands are in BRIDGE_COMMANDS in fluidics_module.py (Which has all the commands the bridge currently has
+Valid commands are in BRIDGE_COMMANDS in fluidics_module.py (Which has all the commands the bridge currently has)
 """
 def main():
 
