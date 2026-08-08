@@ -7,7 +7,7 @@ The fluidics_arduino_bridge is our arduino code, while the fluidics_module.py is
 rest of the project (Control unit) uses.
 This repo also includes utils that utilize the pump (using the bridge)
 
-## Dependencies - nees update
+## Dependencies
 
 1. pySerial
 2. keyboard
@@ -18,14 +18,15 @@ This repo also includes utils that utilize the pump (using the bridge)
 
 ## Utils
 Utils can be found in the fluidics_utils folder. They can be used for calibration, introduction of new commands and more. The current utils are:
-1. fluidics_command_sender: initiates the fluidics system, and then enable the user to send commands directly to the fluidics_system.
+1. fluidics_command_sender: Initiates the fluidics system, and then enable the user to send commands directly to the fluidics_system.
 
 ## TODO's
-1. Finialize and verify bridge
-2. build fluidics_module
+1. Change on-off mechanism to high-low instead of pulse - may solve stop mechanism issue
+2. calibrate speeds to food supplement
+3. micro suckback mechanism
 
 ## Usage - nees update
-IN THE FUTURE WILL BE USED BY CONTROL UNIT
+The fluidics system is used by the control unit
 
 ## Contributing
 Asaf Shasha and Nitai Gildor
