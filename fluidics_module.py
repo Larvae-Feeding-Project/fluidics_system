@@ -6,13 +6,14 @@ import json
 import threading
 from fluidics_system.fluidics_enums import *
 
-# Dict of all available commands
+# Dict of all available commands (
 BRIDGE_COMMANDS = {
-    "toggle": "TOGGLE",
     "forward": "DIR_FWD",
     "reverse": "DIR_REV",
     "speed": "SPEED:",
-    "estop": "ESTOP"
+    "estop": "ESTOP",
+    "start": "PUMP_ON",
+    "stop": "PUMP_OFF"
 }
 
 # Presets - PLACEHOLDERS until field validation
@@ -87,7 +88,6 @@ class FluidicsDriver:
         except Exception as e:
             print(f"\n>> Exception occurred: {e}\n")
 
-
     def _initialize_hardware_state(self):
         """
             Sets default software states and pushes the initial configuration
@@ -95,7 +95,6 @@ class FluidicsDriver:
         """
         self.current_speed = 0
         self.current_dir = Direction.FORWARD
-        self.running = False
 
         time.sleep(1)
         self._set_speed(200)  # Initial value that the pump registers
@@ -126,9 +125,14 @@ class FluidicsDriver:
         """
         if not self._set_speed(FEED_SPEED): return False
         if not self._set_direction(Direction.FORWARD): return False
-        if not self._start_stop(): return False
-        time.sleep(amount / FEED_SPEED)
-        return self._start_stop()
+        if not self._start(): return False
+
+        # Safety mechanism to ensure pump stops if a fail occurs
+        try:
+            time.sleep(amount / FEED_SPEED)
+        finally:
+            # This is guaranteed to run even if time.sleep() is interrupted
+            return self._stop()
 
     def flush(self):
         """
@@ -137,9 +141,15 @@ class FluidicsDriver:
         """
         if not self._set_speed(FLUSH_SPEED): return False
         if not self._set_direction(Direction.FORWARD): return False
-        if not self._start_stop(): return False
-        time.sleep(FLUSH_AMOUNT/ FLUSH_SPEED)
-        return self._start_stop()
+        if not self._start(): return False
+
+        # Safety mechanism to ensure pump stops if a fail occurs
+        try:
+            time.sleep(FLUSH_AMOUNT / FLUSH_SPEED)
+        finally:
+            # This is guaranteed to run even if time.sleep() is interrupted
+            return self._stop()
+
 
     def fill_tube(self):
         """
@@ -151,15 +161,16 @@ class FluidicsDriver:
             time.sleep(1)
             if not self._set_direction(Direction.FORWARD): return False
             time.sleep(1)
-            if not self._start_stop(): return False
-            time.sleep(TUBE_VOLUME / FLUSH_SPEED + 1)
+            if not self._start(): return False
 
-            # Returns True if successful, False if it failed
-            stopped_successfully = self._start_stop()
-            if stopped_successfully:
+            # Safety mechanism to ensure pump stops if a fail occurs
+            try:
+                time.sleep(TUBE_VOLUME / FLUSH_SPEED + 1)
                 self.ready = True
-                return True
-            return False
+            finally:
+                # This is guaranteed to run even if time.sleep() is interrupted
+                return self._stop()
+
 
         except Exception as e:
             print("ERROR: Exception occurred while filling tube")
@@ -177,28 +188,46 @@ class FluidicsDriver:
             time.sleep(1)
             if not self._set_direction(Direction.REVERSE): return False
             time.sleep(1)
-            if not self.running:
-                if not self._start_stop(): return False
-            time.sleep(TUBE_VOLUME / FLUSH_SPEED)
+            if not self._start(): return False
 
-            # Returns True if successful, False if it failed
-            return self._start_stop()
+            # Safety mechanism to ensure pump stops if a fail occurs
+            try:
+                time.sleep(TUBE_VOLUME / FLUSH_SPEED)
+                self.ready = False
+            finally:
+                # This is guaranteed to run even if time.sleep() is interrupted
+                return self._stop()
+
+
         except Exception as e:
             print("ERROR: Exception occurred while filling tube")
             return False
 
-    def _start_stop(self):
+
+    def _start(self):
         """
-        Starts/Stops the pump (toggle)
-        :return: true if successful (received ack from bridge), false otherwise
+            Starts the pump
+            :return: true if successful (received ack from bridge), false otherwise
         """
 
-        rsp = self._send_command(f"toggle")
+        rsp = self._send_command(f"start")
 
         if not rsp:
             return False
 
-        self.running = not self.running
+        return True
+
+    def _stop(self):
+        """
+            stops the pump
+            :return: true if successful (received ack from bridge), false otherwise
+        """
+
+        rsp = self._send_command(f"stop")
+
+        if not rsp:
+            return False
+
         return True
 
     def _set_speed(self, speed):
@@ -330,7 +359,6 @@ class FluidicsDriver:
 
             # Reset software state
             self.current_speed = 0
-            self.running = False
             self.ready = False
             self.command_success = False
             self.ack_event.set()

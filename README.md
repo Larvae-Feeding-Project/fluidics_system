@@ -21,9 +21,8 @@ Utils can be found in the fluidics_utils folder. They can be used for calibratio
 1. fluidics_command_sender: Initiates the fluidics system, and then enable the user to send commands directly to the fluidics_system.
 
 ## TODO's
-1. Change on-off mechanism to high-low instead of pulse - may solve stop mechanism issue
-2. calibrate speeds to food supplement
-3. micro suckback mechanism
+1. calibrate speeds to food supplement
+2. micro suckback mechanism?
 
 ## Usage - nees update
 The fluidics system is used by the control unit

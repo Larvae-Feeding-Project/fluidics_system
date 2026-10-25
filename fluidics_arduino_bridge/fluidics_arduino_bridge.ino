@@ -9,8 +9,9 @@ void setup() {
   // Start serial communication at 115200 baud for Python
   Serial.begin(115200);
 
-  // Initialize switches in an OPEN state (Disconnected - "open switch")
-  pinMode(startStopPin, INPUT);
+  // Initialize switches in an CLOSED state
+  pinMode(startStopPin, OUTPUT);
+  digitalWrite(startStopPin, LOW);
   pinMode(dirPin, INPUT);
 
   // Set the frequency/speed pin as an output
@@ -26,19 +27,18 @@ void loop() {
     command.trim(); // Remove whitespace/newlines
     command.toUpperCase();
 
-    // --- START / STOP (PULSE TOGGLE) ---
-    if (command == "TOGGLE") {
-      // Connect to Ground (close circuit)
-      pinMode(startStopPin, OUTPUT);
-      digitalWrite(startStopPin, LOW); 
-      
-      // Hold for the pump to register
-      delay(300); 
-      
-      // Release the button (open circuit)
-      pinMode(startStopPin, INPUT); 
-      
-      Serial.println("ACK: PUMP TOGGLED");
+    // --- PUMP ON (OPEN CIRCUIT) ---
+    if (command == "PUMP_ON") {
+      pinMode(startStopPin, INPUT);
+      digitalWrite(startStopPin, LOW); // Disconnect (open circuit) *Potential bug because ots floating without resistor
+      Serial.println("ACK: PUMP ON");
+    }
+    
+    // --- PUMP OFF (CLOSED CIRCUIT) ---
+    else if (command == "PUMP_OFF") {
+      pinMode(startStopPin, OUTPUT); // Connect to Ground (close circuit)
+      digitalWrite(startStopPin, LOW);
+      Serial.println("ACK: PUMP OFF");
     }
 
     // --- DIRECTION ---
@@ -73,7 +73,10 @@ void loop() {
     else if (command == "ESTOP") {
       // Instantly kill the hardware outputs
       noTone(speedPin);
-      pinMode(startStopPin, INPUT);
+      
+      // Force PUMP OFF (Close the circuit)
+      pinMode(startStopPin, OUTPUT); 
+      digitalWrite(startStopPin, LOW);
 
       // Reboot ack
       Serial.println("ACK: REBOOTING ARDUINO");
