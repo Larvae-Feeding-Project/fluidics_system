@@ -26,17 +26,17 @@ void loop() {
     command.trim(); // Remove whitespace/newlines
     command.toUpperCase();
 
-    // --- START / STOP (PULSE TOGGLE) ---
-    // --- PUMP ON (CLOSED CIRCUIT) ---
+    // --- PUMP ON (OPEN CIRCUIT) ---
     if (command == "PUMP_ON") {
       pinMode(startStopPin, INPUT);
-      digitalWrite(startStopPin, LOW); // Disconnect (open circuit)
+      digitalWrite(startStopPin, LOW); // Disconnect (open circuit) *Potential bug because ots floating without resistor
       Serial.println("ACK: PUMP ON");
     }
     
-    // --- PUMP OFF (OPEN CIRCUIT) ---
+    // --- PUMP OFF (CLOSED CIRCUIT) ---
     else if (command == "PUMP_OFF") {
       pinMode(startStopPin, OUTPUT); // Connect to Ground (close circuit)
+      digitalWrite(startStopPin, LOW);
       Serial.println("ACK: PUMP OFF");
     }
 
@@ -72,7 +72,10 @@ void loop() {
     else if (command == "ESTOP") {
       // Instantly kill the hardware outputs
       noTone(speedPin);
-      pinMode(startStopPin, INPUT);
+      
+      // Force PUMP OFF (Close the circuit)
+      pinMode(startStopPin, OUTPUT); 
+      digitalWrite(startStopPin, LOW);
 
       // Reboot ack
       Serial.println("ACK: REBOOTING ARDUINO");
