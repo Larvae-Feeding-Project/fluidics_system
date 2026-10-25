@@ -9,8 +9,9 @@ void setup() {
   // Start serial communication at 115200 baud for Python
   Serial.begin(115200);
 
-  // Initialize switches in an OPEN state (Disconnected - "open switch")
+  // Initialize switches in an CLOSED state
   pinMode(startStopPin, OUTPUT);
+  digitalWrite(startStopPin, LOW);
   pinMode(dirPin, INPUT);
 
   // Set the frequency/speed pin as an output
