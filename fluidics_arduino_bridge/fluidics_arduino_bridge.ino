@@ -10,7 +10,7 @@ void setup() {
   Serial.begin(115200);
 
   // Initialize switches in an OPEN state (Disconnected - "open switch")
-  pinMode(startStopPin, INPUT);
+  pinMode(startStopPin, OUTPUT);
   pinMode(dirPin, INPUT);
 
   // Set the frequency/speed pin as an output
@@ -27,18 +27,17 @@ void loop() {
     command.toUpperCase();
 
     // --- START / STOP (PULSE TOGGLE) ---
-    if (command == "TOGGLE") {
-      // Connect to Ground (close circuit)
-      pinMode(startStopPin, OUTPUT);
-      digitalWrite(startStopPin, LOW); 
-      
-      // Hold for the pump to register
-      delay(300); 
-      
-      // Release the button (open circuit)
-      pinMode(startStopPin, INPUT); 
-      
-      Serial.println("ACK: PUMP TOGGLED");
+    // --- PUMP ON (CLOSED CIRCUIT) ---
+    if (command == "PUMP_ON") {
+      pinMode(startStopPin, INPUT);
+      digitalWrite(startStopPin, LOW); // Disconnect (open circuit)
+      Serial.println("ACK: PUMP ON");
+    }
+    
+    // --- PUMP OFF (OPEN CIRCUIT) ---
+    else if (command == "PUMP_OFF") {
+      pinMode(startStopPin, OUTPUT); // Connect to Ground (close circuit)
+      Serial.println("ACK: PUMP OFF");
     }
 
     // --- DIRECTION ---
