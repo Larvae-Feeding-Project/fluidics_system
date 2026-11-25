@@ -18,9 +18,12 @@ BRIDGE_COMMANDS = {
 
 # Presets - PLACEHOLDERS until field validation
 FLUSH_AMOUNT = 10000.0
-FLUSH_SPEED = 6000.0
-FEED_SPEED = 50
-TUBE_VOLUME = 100000.0  # Placeholder fake food: 100300.0
+FILL_SPEED = 2000.0
+FLUSH_SPEED = 60000.0
+CLEAR_SPEED = 6000.0 # Used for tube clearing
+FEED_SPEED = 300 #150 #50
+PHYSICAL_FEED_SPEED = 13.6 #6.8 #2.26 #microliter per second equivalent to 50hz
+TUBE_VOLUME = 105000.0  # Placeholder fake food: 100300.0
 
 
 class FluidicsDriver:
@@ -38,11 +41,11 @@ class FluidicsDriver:
         try:
             with open(data_path, "r") as file:
                 self.fluidics_data = json.load(file)
-            print("Fluidics data loaded successfully")
+            print("[FLUIDICS SYSTEM] Fluidics data loaded successfully")
         except FileNotFoundError:
-            print('No fluidics data file found')
+            print('[FLUIDICS SYSTEM] No fluidics data file found')
         except Exception as e:
-            print("Exception occurred, could not open data.json")
+            print("[FLUIDICS SYSTEM] Exception occurred, could not open data.json")
 
         # Threading Synchronization Objects
         self.command_lock = threading.Lock()  # Prevents overlapping commands
@@ -62,14 +65,14 @@ class FluidicsDriver:
         success_text = "reestablished" if is_reconnect else "established"
 
         try:
-            print(f"{action_text} fluidics bridge on {self.fluidics_data['COMPORT']}...")
+            # print(f"{action_text} fluidics bridge on {self.fluidics_data['COMPORT']}...")
             self.fluidics_bridge = serial.Serial(
                 self.fluidics_data["COMPORT"],
                 self.fluidics_data["BAUD_RATE"],
                 timeout=1
             )
             time.sleep(2)  # Wait for serial initialization / Arduino reset
-            print(f"\nFluidics system connection {success_text}\n")
+            print(f"\n[FLUIDICS SYSTEM] Fluidics system connection {success_text}\n")
 
             # Start the background listening thread
             self.listening_flag = True
@@ -84,9 +87,9 @@ class FluidicsDriver:
                 self.clear_tube()
 
         except serial.SerialException as e:
-            print(f"\n>> Connection failed: {e}. Check USB connection.\n")
+            print(f"\n[FLUIDICS SYSTEM] Connection failed: {e}. Check USB connection.\n")
         except Exception as e:
-            print(f"\n>> Exception occurred: {e}\n")
+            print(f"\n[FLUIDICS SYSTEM] Serial Exception occurred: {e}\n")
 
     def _initialize_hardware_state(self):
         """
@@ -114,7 +117,7 @@ class FluidicsDriver:
         # Shut down listening
         self.listening_flag = False
         self.fluidics_bridge.close()
-        print("Fluidics system closed...")
+        print("[FLUIDICS SYSTEM] Fluidics system closed...")
         time.sleep(1)
 
     def output(self, amount):
@@ -129,10 +132,13 @@ class FluidicsDriver:
 
         # Safety mechanism to ensure pump stops if a fail occurs
         try:
-            time.sleep(amount / FEED_SPEED)
+            print(f"[FLUIDICS SYSTEM]: time to feed: {amount/PHYSICAL_FEED_SPEED}")
+            time.sleep(amount / PHYSICAL_FEED_SPEED)
         finally:
             # This is guaranteed to run even if time.sleep() is interrupted
-            return self._stop()
+            self._stop()
+            time.sleep(1.5) # For pressure balancing
+            return True
 
     def flush(self):
         """
@@ -157,7 +163,7 @@ class FluidicsDriver:
         :return: true when finished, false otherwise
         """
         try:
-            if not self._set_speed(FLUSH_SPEED): return False
+            if not self._set_speed(FILL_SPEED): return False
             time.sleep(1)
             if not self._set_direction(Direction.FORWARD): return False
             time.sleep(1)
@@ -165,7 +171,7 @@ class FluidicsDriver:
 
             # Safety mechanism to ensure pump stops if a fail occurs
             try:
-                time.sleep(TUBE_VOLUME / FLUSH_SPEED + 1)
+                time.sleep(TUBE_VOLUME / FILL_SPEED + 1)
                 self.ready = True
             finally:
                 # This is guaranteed to run even if time.sleep() is interrupted
@@ -173,7 +179,7 @@ class FluidicsDriver:
 
 
         except Exception as e:
-            print("ERROR: Exception occurred while filling tube")
+            print("[FLUIDICS SYSTEM] ERROR: Exception occurred while filling tube")
             return False
 
         # May need movement system to touch surface before starting
@@ -192,7 +198,7 @@ class FluidicsDriver:
 
             # Safety mechanism to ensure pump stops if a fail occurs
             try:
-                time.sleep(TUBE_VOLUME / FLUSH_SPEED)
+                time.sleep(TUBE_VOLUME / CLEAR_SPEED)
                 self.ready = False
             finally:
                 # This is guaranteed to run even if time.sleep() is interrupted
@@ -200,7 +206,7 @@ class FluidicsDriver:
 
 
         except Exception as e:
-            print("ERROR: Exception occurred while filling tube")
+            print("[FLUIDICS SYSTEM] ERROR: Exception occurred while filling tube")
             return False
 
 
@@ -237,7 +243,7 @@ class FluidicsDriver:
         :return: true if successful (received ack from bridge), false otherwise
         """
         if speed < 0 or speed > 10000:
-            print("Speed must be between 0 to 10000")
+            print("[FLUIDICS SYSTEM] Speed must be between 0 to 10000")
             return False
 
         rsp = self._send_command(f"speed {speed}")
@@ -271,7 +277,7 @@ class FluidicsDriver:
         """
         Sends a command to the fluidics bridge and waits for an ACK.
         """
-        print(f"Processing command: {command_input}")
+        #print(f"Processing command: {command_input}")
 
         # Split string by spaces
         parts = str(command_input).strip().split()
@@ -281,7 +287,7 @@ class FluidicsDriver:
         base_cmd = parts[0].lower()
 
         if base_cmd not in BRIDGE_COMMANDS:
-            print(f"Invalid command: {base_cmd}")
+            print(f"[FLUIDICS SYSTEM] Invalid command: {base_cmd}")
             return False
 
         # Construct the string for bridge
@@ -302,7 +308,7 @@ class FluidicsDriver:
             event_not_timed_out = self.ack_event.wait(timeout)
 
             if not event_not_timed_out:
-                print(f"[Timeout] No ACK received for '{serial_msg}' within {timeout}s.")
+                print(f"[FLUIDICS SYSTEM][Timeout] No ACK received for '{serial_msg}' within {timeout}s.")
                 return False
 
             return self.command_success
@@ -318,7 +324,7 @@ class FluidicsDriver:
                     incoming_data = self.fluidics_bridge.readline().decode('utf-8', errors='ignore').strip()
 
                     if incoming_data:
-                        print(f"\n[Arduino]: {incoming_data}")  # Print received message
+                        # print(f"\n[FLUIDICS SYSTEM][Arduino]: {incoming_data}")  # Print received message
 
                         # Incoming data analysis
                         if "ACK" in incoming_data:
@@ -334,7 +340,7 @@ class FluidicsDriver:
                             self.ack_event.set()  # Wakes up _send_command, but registers as a failure
 
             except Exception as e:
-                print(f"\n[Serial Read Error]: {e}\n")
+                print(f"\n[FLUIDICS SYSTEM][Serial Read Error]: {e}\n")
                 # print("EXITING LISTENING THREAD AND TERMINATING FLUIDICS SYSTEM") NEED TO THINK ABOUT THIS
                 break
 
@@ -345,7 +351,7 @@ class FluidicsDriver:
         """
             Commands the Arduino to reboot via Watchdog, then reestablishes the connection.
         """
-        print(">> FLUIDICS EMERGENCY STOP TRIGGERED!")
+        print("[FLUIDICS SYSTEM] FLUIDICS EMERGENCY STOP TRIGGERED!")
 
         if hasattr(self, 'fluidics_bridge') and self.fluidics_bridge.is_open:
             # Send the kill command
@@ -370,7 +376,7 @@ class FluidicsDriver:
         """
         Waits for the Arduino bootloader to finish, then rebuilds the serial connection.
         """
-        print(">> Waiting for Arduino to reboot...")
+        print("[FLUIDICS SYSTEM] Waiting for Arduino to reboot...")
         time.sleep(3)  # Give bridge time to restart
 
         self._connect_and_start(is_reconnect=True)
